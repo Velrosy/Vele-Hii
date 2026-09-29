@@ -1,9 +1,9 @@
 name: Build Vele APK
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   build:
@@ -12,15 +12,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Locate project
-        id: loc
+      - name: Unzip Vele project
         run: |
-          for z in *.zip; do
-            [ -f "$z" ] && unzip -q -o "$z" -d extracted
-          done
-          G=$(find . -name gradlew -not -path "./.git/*" | head -n1)
-          if [ -z "$G" ]; then echo "gradlew not found - project files missing"; ls -R | head -50; exit 1; fi
-          echo "dir=$(dirname "$G")" >> "$GITHUB_OUTPUT"
+          Z=$(ls Vele-Presence-source*.zip 2>/dev/null | head -n1)
+          if [ -z "$Z" ]; then
+            echo "ERROR: upload Vele-Presence-source.zip to the repo root"
+            ls
+            exit 1
+          fi
+          rm -rf vele_src && mkdir vele_src
+          unzip -q "$Z" -d vele_src
+          G=$(find vele_src -name gradlew | head -n1)
+          echo "PROJECT_DIR=$(dirname "$G")" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -28,11 +31,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager --licenses > /dev/null || true
 
       - name: Build APK
-        working-directory: ${{ steps.loc.outputs.dir }}
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
@@ -41,4 +44,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Vele-APK
-          path: ${{ steps.loc.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
