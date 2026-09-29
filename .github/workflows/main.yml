@@ -12,8 +12,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unzip project
-        run: unzip -q Vele-Presence-source.zip
+      - name: Locate project
+        id: loc
+        run: |
+          for z in *.zip; do
+            [ -f "$z" ] && unzip -q -o "$z" -d extracted
+          done
+          G=$(find . -name gradlew -not -path "./.git/*" | head -n1)
+          if [ -z "$G" ]; then echo "gradlew not found - project files missing"; ls -R | head -50; exit 1; fi
+          echo "dir=$(dirname "$G")" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -25,7 +32,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build APK
-        working-directory: Discord-Activity-Status-app-main
+        working-directory: ${{ steps.loc.outputs.dir }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
@@ -34,4 +41,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Vele-APK
-          path: Discord-Activity-Status-app-main/app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.loc.outputs.dir }}/app/build/outputs/apk/debug/*.apk
